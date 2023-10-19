@@ -1,154 +1,152 @@
-from flask import Flask, g, render_template, request, redirect, url_for, send_from_directory
-import sqlite3, os
+from flask import Flask, redirect, url_for, render_template, request
+from flask_sqlalchemy import SQLAlchemy
+import os
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config['DATABASE'] = 'database.db'
 app.config['UPLOAD_FOLDER'] = 'static/img/uploads'
-basedir = os.path.abspath(os.path.dirname(__file__)) 
+# Configuración de la base de datos SQLite
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
+app.config['SQLALCHEMY_ECHO'] = True
 
-def get_db():
-    sqlite3_database_path = basedir + "/database.db"
-    con = sqlite3.connect(sqlite3_database_path)
-    con.row_factory = sqlite3.Row
-    return con
+db = SQLAlchemy(app)
 
-@app.teardown_appcontext
-def close_connection(exception):
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
+# Definición del modelo de la tabla Product
+class Product(db.Model):
+    __tablename__ = 'products'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String, nullable=False)
+    description = db.Column(db.String, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
+    photo = db.Column(db.String, nullable=False)
+    category = db.relationship('Category', backref='products')
 
-# Operación List
-@app.route('/products/list')
+# Definición del modelo de la tabla Category
+class Category(db.Model):
+    __tablename__ = 'categories'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Rutas y vistas
+@app.route('/')
+def init():
+    return redirect(url_for('product_list'))
+
 @app.route('/products/list', methods=['GET', 'POST'])
 def product_list():
     try:
-        with get_db() as con:
-            # Obtener la lista de categorías
-            categories = con.execute('SELECT id, name FROM categories').fetchall()
-            
-            selected_category = request.form.get('category')  # Obtener la categoría seleccionada
+        categories = Category.query.all()  # Obtener la lista de categorías
 
-            if selected_category:
-                # Si se selecciona una categoría, filtrar los productos por categoría
-                sql = '''
-                    SELECT products.*, categories.name AS category_name
-                    FROM products
-                    LEFT JOIN categories ON products.category_id = categories.id
-                    WHERE categories.name = ?
-                '''
-                res = con.execute(sql, (selected_category,))
-                products = res.fetchall()
+        selected_category = request.form.get('category')  # Obtener la categoría seleccionada
+
+        if selected_category:
+            # Buscar la categoría por su nombre
+            category = Category.query.filter_by(name=selected_category).first()
+
+            if category:
+                # Si se encuentra la categoría, filtrar los productos por su ID
+                products = Product.query.filter_by(category_id=category.id).all()
             else:
-                # Si no se selecciona ninguna categoría, mostrar todos los productos
-                sql = '''
-                    SELECT products.*, categories.name AS category_name
-                    FROM products
-                    LEFT JOIN categories ON products.category_id = categories.id
-                '''
-                res = con.execute(sql)
-                products = res.fetchall()
+                # Manejar el caso en el que la categoría no se encuentra
+                products = []
 
-            return render_template('products/list.html', products=products, categories=categories, selected_category=selected_category)
+        else:
+            # Si no se selecciona ninguna categoría, mostrar todos los productos
+            products = Product.query.all()
+
+        return render_template('products/list.html', products=products, categories=categories, selected_category=selected_category)
     except Exception as e:
         return str(e)
-    
-@app.route('/products/delete/<int:id>', methods=['GET', 'POST'])
-def delete_product(id):
-    with get_db() as con:
-        res = con.execute('SELECT * FROM products WHERE id = ?', (id,))
-        product = res.fetchone()
 
-    if request.method == 'POST':
-        with get_db() as con:
-            con.execute('DELETE FROM products WHERE id = ?', (id,))
-            con.commit()
-        return redirect(url_for('product_list'))
-    
-    return render_template('products/delete.html', product=product)
 
-# Operación Create
-@app.route('/products/create', methods=['GET', 'POST'])
-def create_product():
+
+@app.route('/products/update/<int:id>', methods=['GET', 'POST'])
+def product_update(id):
+    product = Product.query.get(id)
+    categories = Category.query.all()
+
     if request.method == 'POST':
         title = request.form['title']
         description = request.form['description']
-        price = request.form['price']
-        category_id = request.form['category']  # Obtener el ID de la categoría desde el menú desplegable
-        
+        price = float(request.form['price'])
+        category_id = int(request.form['category'])
+
+        # Comprueba si se ha enviado una nueva imagen
+        new_photo = request.files['photo']
+
+        if new_photo and allowed_file(new_photo.filename):
+            # Borra la imagen anterior si existe
+            if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], product.photo)):
+                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], product.photo))
+
+            # Guarda la nueva imagen
+            filename = secure_filename(new_photo.filename)
+            new_photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+            # Actualiza la información del producto
+            product.title = title
+            product.description = description
+            product.price = price
+            product.category_id = category_id
+            product.photo = filename
+
+        else:
+            # Si no se proporciona una nueva imagen, simplemente actualiza la información
+            product.title = title
+            product.description = description
+            product.price = price
+            product.category_id = category_id
+
+        db.session.commit()
+
+        return redirect(url_for('product_list'))
+
+    return render_template('products/update.html', product=product, categories=categories)
+
+
+@app.route('/products/create', methods=['GET', 'POST'])
+def product_create():
+    categories = Category.query.all()
+
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form['description']
+        price = float(request.form['price'])
+        category_id = int(request.form['category'])
+
         photo = request.files['photo']
 
         if photo and allowed_file(photo.filename):
             filename = secure_filename(photo.filename)
             photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-            with get_db() as con:
-                con.execute('INSERT INTO products (title, description, price, photo, category_id) VALUES (?, ?, ?, ?, ?)', (title, description, price, filename, category_id))
-                con.commit()
-            return redirect(url_for('product_list'))
+            new_product = Product(title=title, description=description, price=price, category_id=category_id, photo=filename)
+            db.session.add(new_product)
+            db.session.commit()
 
-    with get_db() as con:
-        categories = con.execute('SELECT id, name FROM categories').fetchall()
+            return redirect(url_for('product_list'))
 
     return render_template('products/create.html', categories=categories)
 
-
-# Operación Read
 @app.route('/products/read/<int:id>')
-def read_product(id):
-    with get_db() as con:
-        # Realizar una consulta JOIN para obtener el nombre de la categoría
-        sql = '''
-            SELECT products.*, categories.name AS category_name
-            FROM products
-            LEFT JOIN categories ON products.category_id = categories.id
-            WHERE products.id = ?
-        '''
-        res = con.execute(sql, (id,))
-        product = res.fetchone()
+def product_read(id):
+    product = Product.query.get(id)
     return render_template('products/read.html', product=product)
 
-# Operación Update
-@app.route('/products/update/<int:id>', methods=['GET', 'POST'])
-def update_product(id):
-    with get_db() as con:
-        res = con.execute('SELECT * FROM products WHERE id = ?', (id,))
-        product = res.fetchone()
+@app.route('/products/delete/<int:id>', methods=['GET', 'POST'])
+def product_delete(id):
+    product = Product.query.get(id)
 
     if request.method == 'POST':
-        title = request.form['title']
-        description = request.form['description']
-        price = request.form['price']
-        category_id = request.form['category']  # Obtener el ID de la categoría desde el menú desplegable
+        db.session.delete(product)
+        db.session.commit()
+        return redirect(url_for('product_list'))
 
-        photo = request.files['photo']
-
-        if photo and allowed_file(photo.filename):
-            filename = secure_filename(photo.filename)
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-
-            with get_db() as con:
-                con.execute('UPDATE products SET title = ?, description = ?, price = ?, photo = ?, category_id = ? WHERE id = ?', (title, description, price, filename, category_id, id))
-                con.commit()
-            
-              # Redirigir a la lista de productos después de actualizar
-            return redirect(url_for('product_list'))
-
-    with get_db() as con:
-        categories = con.execute('SELECT id, name FROM categories').fetchall()
-    
-    return render_template('products/update.html', product=product, categories=categories)
-    return redirect(url_for('product_list'))
-
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png', 'gif'}
-
-@app.route('/static/<path:filename>')
-def static_files(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return render_template('products/delete.html', product=product)
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Actualizar Producto</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <h1>Actualizar Producto</h1>
+    <form method="POST" enctype="multipart/form-data">
+        <label for="title">Título:</label>
+        <input type="text" name="title" value="{{ product.title }}" required><br>
+        <label for="description">Descripción:</label>
+        <textarea name="description" required>{{ product.description }}</textarea><br>
+        <label for="price">Precio:</label>
+        <input type="number" name="price" value="{{ product.price }}" step="0.01" required><br>
+        <label for="category">Categoría:</label>
+        <select name="category" id="category">
+            {% for category in categories %}
+                <option value="{{ category.id }}" {% if category.id == product.category_id %}selected{% endif %}>
+                    {{ category.name }}
+                </option>
+            {% endfor %}
+        </select><br>
+        <input type="file" name="photo" accept="image/*"required><br>
+        <input type="submit" value="Actualizar">
+    </form>
+</body>
+</html>

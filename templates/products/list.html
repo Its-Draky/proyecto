@@ -2,12 +2,35 @@
 <html>
 <head>
     <title>Lista de Productos</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
     <h1>Lista de Productos</h1>
+    <a href="{{ url_for('create_product') }}" class="btn btn-primary">Crear Nuevo Producto</a><br>
+    <form method="POST">
+        <label for="category">Categoría:</label>
+        <select name="category" id="category">
+            <option value="">Todas</option>
+            {% for category in categories %}
+                <option value="{{ category.name }}" {{ 'selected' if category.name == selected_category }}>
+                    {{ category.name }}
+                </option>
+            {% endfor %}
+        </select>
+        <input type="submit" value="Filtrar">
+    </form>
     <ul>
         {% for product in products %}
-            <li>{{ product["title"] }} - {{ product["description"] }}</li>
+            <li class="product-item">
+                Título: {{ product.title }}<br>
+                Descripción: {{ product.description }}<br>
+                Precio: {{ product.price }}<br>
+                Categoría: {{ product.category_name }}<br>
+                <img src="{{ url_for('static', filename='img/uploads/' + product.photo) }}" alt="{{ product.title }}" style="width: 20%;"><br>
+                <a href="{{ url_for('read_product', id=product.id) }}" class="btn btn-success">Leer</a>
+                <a href="{{ url_for('update_product', id=product.id) }}" class="btn btn-warning">Actualizar</a>
+                <a href="{{ url_for('delete_product', id=product.id) }}" class="btn btn-danger">Eliminar</a>
+            </li>
         {% endfor %}
     </ul>
 </body>

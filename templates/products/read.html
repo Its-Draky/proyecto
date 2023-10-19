@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Producto</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <h1>Producto</h1>
+    <p>Título: {{ product.title }}</p>
+    <p>Descripción: {{ product.description }}</p>
+    <p>Precio: {{ product.price }}</p>
+    <p>Categoría: {{ product.category_name }}</p> <!-- Mostrar el nombre de la categoría -->
+    <img src="{{ url_for('static', filename='img/uploads/' + product.photo) }}" alt="{{ product.title }}" style="width: 20%;"><br>
+</body>
+</html>

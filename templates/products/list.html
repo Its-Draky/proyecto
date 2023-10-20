@@ -6,7 +6,7 @@
 </head>
 <body>
     <h1>Lista de Productos</h1>
-    <a href="{{ url_for('product_create') }}" class="btn btn-primary">Crear Nuevo Producto</a><br>
+    <a href="{{ url_for('main_bp.product_create') }}" class="btn btn-primary">Crear Nuevo Producto</a><br>
     <form method="POST">
         <label for="category">Categoría:</label>
         <select name="category" id="category">
@@ -24,12 +24,12 @@
             <li class="product-item">
                 Título: {{ product.title }}<br>
                 Descripción: {{ product.description }}<br>
-                Precio: {{ product.price }}<br>
+                Precio: {{ product.price }}€<br>
                 Categoría: {{ product.category.name }}<br>
                 <img src="{{ url_for('static', filename='img/uploads/' + product.photo) }}" alt="{{ product.title }}" style="width: 20%;"><br>
-                <a href="{{ url_for('product_read', id=product.id) }}" class="btn btn-success">Leer</a>
-                <a href="{{ url_for('product_update', id=product.id) }}" class="btn btn-warning">Actualizar</a>
-                <a href="{{ url_for('product_delete', id=product.id) }}" class="btn btn-danger">Eliminar</a>
+                <a href="{{ url_for('main_bp.product_read', id=product.id) }}" class="btn btn-success">Leer</a>
+                <a href="{{ url_for('main_bp.product_update', id=product.id) }}" class="btn btn-warning">Actualizar</a>
+                <a href="{{ url_for('main_bp.product_delete', id=product.id) }}" class="btn btn-danger">Eliminar</a>
             </li>
         {% endfor %}
     </ul>
